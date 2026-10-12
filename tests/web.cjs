@@ -3,6 +3,10 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const assert = require('node:assert/strict');
+if (process.env.MODEL_BASE_URL !== 'http://127.0.0.1:8877/v1') {
+  console.error('此脚本只用于独立的本地协议测试容器，MODEL_BASE_URL 必须为 http://127.0.0.1:8877/v1。');
+  process.exit(1);
+}
 const origin = process.env.TEST_WEB_URL || 'http://127.0.0.1:4096';
 let observedTool = false;
 let receivedToolResult = false;
