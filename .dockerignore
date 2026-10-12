@@ -6,4 +6,5 @@ workspace
 .test-artifacts
 node_modules
 *.log
-vendor/ghidra
+vendor/ghidra/*
+!vendor/ghidra/ghidra_12.1.4_PUBLIC_20260921.zip

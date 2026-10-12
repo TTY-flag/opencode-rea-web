@@ -23,10 +23,8 @@ RUN test "$(dpkg --print-architecture)" = amd64 \
     && rm /tmp/node.tar.xz
 
 FROM runtime-base AS ghidra
-RUN curl -fSL --retry 3 --connect-timeout 30 \
-      "https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_${GHIDRA_VERSION}_build/ghidra_${GHIDRA_VERSION}_PUBLIC_${GHIDRA_RELEASE_DATE}.zip" \
-      -o /tmp/ghidra.zip \
-    && echo "${GHIDRA_SHA256}  /tmp/ghidra.zip" | sha256sum -c - \
+COPY vendor/ghidra/ghidra_${GHIDRA_VERSION}_PUBLIC_${GHIDRA_RELEASE_DATE}.zip /tmp/ghidra.zip
+RUN echo "${GHIDRA_SHA256}  /tmp/ghidra.zip" | sha256sum -c - \
     && mkdir -p /opt/ghidra \
     && unzip -q /tmp/ghidra.zip -d /opt/ghidra \
     && mv "/opt/ghidra/ghidra_${GHIDRA_VERSION}_PUBLIC" /opt/ghidra/current \

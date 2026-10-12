@@ -5,16 +5,20 @@
 项目直接运行 **`opencode web`**，内置 REA MCP、匹配的 REA Skill 和 Ghidra
 Headless。没有额外的 Web Server，也不要求 Web 登录密码。
 
-## 三步开始
+## 使用步骤
 
 准备 Docker；Windows 使用 Docker Desktop 的 **Linux 容器**模式。初次启动会
-构建镜像并安装依赖，需要联网，建议给 Docker 分配至少 8 GB 内存。完整的
-Ghidra 由 Docker 构建时从官方地址自动下载并校验，用户无需手动安装。
+构建镜像并安装其他依赖，需要联网，建议给 Docker 分配至少 8 GB 内存。
 
-**1. 放文件。** 把待分析的文件或目录复制到 `workspace/`。也可以在下一步
+**1. 准备 Ghidra。** 从[官方下载链接](https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.1.4_build/ghidra_12.1.4_PUBLIC_20260921.zip)
+下载 ZIP，保留文件名 `ghidra_12.1.4_PUBLIC_20260921.zip`，放到
+`vendor/ghidra/`，**无需解压**。Docker 读取这个本地文件，校验后安装；
+Ghidra ZIP 已被 Git 忽略，上传仓库只包含[下载说明](vendor/ghidra/README.md)。
+
+**2. 放文件。** 把待分析的文件或目录复制到 `workspace/`。也可以在下一步
 把 `WORKSPACE_DIR` 改为已经存在的目录，不必复制。
 
-**2. 配模型。** 将 `.env.example` 复制为 `.env`，填写三个字段：
+**3. 配模型。** 将 `.env.example` 复制为 `.env`，填写三个字段：
 
 ```dotenv
 MODEL_BASE_URL=https://你的模型服务地址/v1
@@ -27,7 +31,7 @@ MODEL_ID=你的模型名
 前缀，不要追加 `/chat/completions`。本地无认证模型也需给 `MODEL_API_KEY`
 填一个非空占位值，例如 `local`。模型与 Web 服务是不同配置，无需填写 Web 密码。
 
-**3. 启动。** 在项目目录执行：
+**4. 启动。** 在项目目录执行：
 
 Windows PowerShell：
 
@@ -83,7 +87,7 @@ WORKSPACE_DIR=D:/samples/my-app
 | Ghidra | 12.1.4，完整 Linux JDK 21 |
 | 常用工具 | Python 3、Git、ripgrep、file、binutils、jq、GCC/G++、make、解压工具 |
 
-Node 和 Ghidra 的官方下载都会校验 SHA-256。原生 EXE/DLL、ELF 等通过 Ghidra 静态分析；
+Node 的下载和本地 Ghidra ZIP 都会校验 SHA-256。原生 EXE/DLL、ELF 等通过 Ghidra 静态分析；
 JavaScript/Electron 和 .NET 的静态检查使用 REA 自带能力。REA 工具列表中需要
 其他引擎的功能不等于已经可用：本镜像没有安装 JADX、IDA、Hopper、浏览器或固件
 引擎。Linux 容器可以分析 Windows PE，但不会因此具备原生 Windows 运行环境。
@@ -165,7 +169,8 @@ docker compose exec app opencode mcp list
 docker compose down
 ```
 
-启动脚本会先检查模型字段、工作目录写权限及 Ghidra 环境。`rea connected`
+启动脚本会检查本地 Ghidra ZIP 是否存在；构建时校验其完整性，容器启动时再
+检查模型字段、工作目录写权限及 Ghidra 环境。`rea connected`
 只代表 MCP 连通，首次 Ghidra 查询还需要导入和自动分析。
 
 如果出现目录无法写入，检查 `WORKSPACE_DIR` 和 UID/GID。如果连接模型失败，
@@ -195,7 +200,7 @@ MiniMax-M3.1-Flash-Preview 的 `max` 档也已通过同样的真实工具验收�
 ## 项目结构
 
 ```text
-Dockerfile          # 工具安装和 Ghidra 自动下载，固定版本与校验
+Dockerfile          # 工具安装，读取本地 Ghidra ZIP 并校验、解压
 compose.yaml        # 端口、可写挂载、持久卷、资源设置
 .env.example        # 模型配置模板
 entrypoint.sh       # 自动生成配置，最后 exec opencode web
@@ -203,13 +208,14 @@ instructions.md     # 工作目录和分析方式的默认指引
 start.ps1 / start.sh # 一键启动
 workspace/          # 用户文件，Git 忽略
 tests/              # 实际反编译验收
-vendor/ghidra/      # 仅 README.md：官方下载地址与说明
+vendor/ghidra/      # Git 仅跟踪 README.md；用户把 Ghidra ZIP 放在这里
 ```
 
 仓库只保存 Ghidra 的[官方下载说明](vendor/ghidra/README.md)，不提交约 543 MiB
-的安装包或程序本体。普通 `git clone` 后执行启动脚本，Docker 会自动下载、校验
-和解压 Ghidra；构建缓存可避免重复下载，最终镜像只保留解压后的程序。
-首次构建需要联网获取 Ghidra、基础 Ubuntu 镜像、apt 和 npm 依赖。
+的安装包或程序本体。普通 `git clone` 后，用户先按链接下载 ZIP 到
+`vendor/ghidra/`，再执行启动脚本。Docker 只从本地读取、校验和解压 Ghidra；
+最终镜像保留解压后的程序，宿主机 ZIP 保留供后续构建使用。
+首次构建仍需联网获取基础 Ubuntu 镜像、Node.js、apt 和 npm 依赖。
 
 项目代码采用 MIT 许可证。镜像内各上游工具保留各自的许可证和第三方声明。
 上游：[OpenCode](https://opencode.ai/) · [REA](https://github.com/morluto/rea) ·

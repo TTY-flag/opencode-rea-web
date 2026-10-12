@@ -8,11 +8,14 @@ try {
     Write-Host '已生成 .env。填写 MODEL_BASE_URL、MODEL_API_KEY、MODEL_ID 后，再运行本脚本。'
     exit 0
   }
+  if (-not $NoBuild -and -not (Test-Path -LiteralPath 'vendor/ghidra/ghidra_12.1.4_PUBLIC_20260921.zip' -PathType Leaf)) {
+    throw '请先从 https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.1.4_build/ghidra_12.1.4_PUBLIC_20260921.zip 下载 Ghidra ZIP，按原文件名放到 vendor/ghidra/；无需解压。'
+  }
   if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { throw '请先安装并启动 Docker Desktop。' }
   $engineType = docker info --format '{{.OSType}}'
   if ($LASTEXITCODE -ne 0) { throw 'Docker 未启动，或 Linux 容器引擎不可用。' }
   if ($engineType.Trim() -ne 'linux') { throw '请将 Docker Desktop 切换为 Linux 容器模式。' }
-  if ($NoBuild) { docker compose up -d --wait --wait-timeout 180 }
+  if ($NoBuild) { docker compose up -d --no-build --wait --wait-timeout 180 }
   else { docker compose up -d --build --wait --wait-timeout 180 }
   if ($LASTEXITCODE -ne 0) { throw '启动失败。请运行 docker compose logs app 查看原因。' }
   $port = '4096'
