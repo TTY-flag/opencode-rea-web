@@ -98,6 +98,8 @@ JavaScript/Electron 和 .NET 的静态检查使用 REA 自带能力。REA 工具
 | `BIND_ADDRESS` | `127.0.0.1` | 改为 `0.0.0.0` 可供可信内网团队访问 |
 | `MODEL_API` | `openai-compatible` | Responses API 使用 `openai-responses` |
 | `MODEL_CONTEXT` / `MODEL_OUTPUT` | `131072` / `16384` | 按模型实际 token 规格设置 |
+| `MODEL_TEMPERATURE` / `MODEL_TOP_P` | 空 | Build / Plan 主对话采样参数；空值使用默认值 |
+| `MODEL_REASONING_EFFORT` | 空 | 模型支持时可设 `low`、`medium`、`high`、`xhigh`、`max` |
 | `APP_UID` / `APP_GID` | `1000` / `1000` | Linux 宿主机使用 `id -u` / `id -g` 的结果 |
 | `CPU_LIMIT` / `MEMORY_LIMIT` | `4` / `8g` | 容器资源上限 |
 | `GHIDRA_HEADLESS_MAXMEM` | `2G` | Ghidra JVM 堆大小 |
@@ -112,6 +114,47 @@ Docker Desktop 使用宿主机服务时，可填写 `host.docker.internal`，例
 
 修改 `.env` 后重新运行启动脚本即可。模型 Key 不写入镜像；生成的 OpenCode
 配置通过环境变量引用 Key。Web 默认无密码，适用于本机或可信网络。
+
+### MiniMax 配置示例
+
+截至 2026-10-12，[官方模型列表](https://platform.minimax.cn/docs/guides/text-generation)
+提供以下选择：
+
+| 模型 ID | 上下文 | 选择建议 |
+| --- | --- | --- |
+| `MiniMax-M3.1-Flash-Preview` | 1,000,000 | 最新预览型号，可调思考深度；复杂分析可尝试 `max` |
+| `MiniMax-M3` | 1,000,000 | 正式型号，代码与工具任务；不支持调节 `reasoning_effort` |
+| `MiniMax-M2.7` | 204,800 | 已验证的上一代选择 |
+| `MiniMax-M2.7-highspeed` | 204,800 | 官方说明效果与 M2.7 相同、输出更快 |
+
+M3.1 预览版官方目前主要通过 M Plan / MiniMax Code 提供，是否可用以你的 Key
+实际权限为准。更早的 M2.5、M2.1 和 M2 仍列在官方历史模型中。
+
+使用 M3.1 的示例，Key 填自己的：
+
+```dotenv
+MODEL_BASE_URL=https://api.minimax.cn/v1
+MODEL_API_KEY=你的APIKey
+MODEL_ID=MiniMax-M3.1-Flash-Preview
+MODEL_CONTEXT=1000000
+MODEL_OUTPUT=32000
+MODEL_TEMPERATURE=1
+MODEL_TOP_P=0.95
+MODEL_REASONING_EFFORT=max
+```
+
+`MODEL_CONTEXT` 告诉 OpenCode 模型实际上下文容量，不会自动上传整个目录。
+`MODEL_OUTPUT` 是每次模型回复的 token 上限，包含思考内容；本项目的 OpenCode
+1.19.0 默认还会将实际输出上限限制在 32,000。上面的 32,000 是项目配置选择，
+不是模型的官方最大输出声明。
+
+MiniMax M3 / M3.1 的 API 默认温度为 `1`、`top_p` 为 `0.95`；一般可以沿用。
+M3.1 的思考深度默认 `max`，降低档位会减少耗时和思考 token；`none` 不可用。
+容器会为 M3.1 配置五档 OpenCode variant，并保留工具多轮历史中的
+`reasoning_content`。切换为 M3 或 M2.x 时删除 `MODEL_REASONING_EFFORT`，它们
+没有同样的五档调节能力。已有会话也要在 Web 模型选择器中切换到新型号。
+参数和兼容性以 [MiniMax API 文档](https://platform.minimax.cn/docs/api-reference/text-openai-api)
+为准；采样参数不是提高准确率的保证，分析结论仍需函数地址和工具证据支撑。
 
 ## 查看和停止
 
@@ -145,6 +188,8 @@ docker compose exec app node /opt/rea-web/tests/smoke.cjs /workspace/1.exe
 2026-10-12 已验证：Linux/amd64 镜像构建、无密码 Web 页面、可写挂载、REA MCP
 工具回路，以及真实 Windows x64 PE 样本的 Ghidra 反编译。另使用 MiniMax-M2.7
 完成了 OpenCode → REA → Ghidra → 写入伪代码 → 关闭会话的真实模型验收。
+MiniMax-M3.1-Flash-Preview 的 `max` 档也已通过同样的真实工具验收；独立协议测试
+确认采样和思考参数到达接口，工具多轮历史保留 `reasoning_content`。
 测试样本、模型 Key 和本机测试输出均不随仓库提交。
 
 ## 项目结构

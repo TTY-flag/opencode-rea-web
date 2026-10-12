@@ -29,6 +29,25 @@ try {
   const context = integer('MODEL_CONTEXT', 131072);
   const output = integer('MODEL_OUTPUT', 16384);
   if (output >= context) throw new Error('MODEL_OUTPUT 必须小于 MODEL_CONTEXT。');
+  const number = (name, min, max) => {
+    if (!env[name]?.trim()) return undefined;
+    const value = Number(env[name]);
+    if (!Number.isFinite(value) || value < min || value > max) throw new Error(`${name} 必须在 ${min} 到 ${max} 之间。`);
+    return value;
+  };
+  const temperature = number('MODEL_TEMPERATURE', 0, 2);
+  const top_p = number('MODEL_TOP_P', 0, 1);
+  const effort = env.MODEL_REASONING_EFFORT?.trim();
+  const efforts = ['low', 'medium', 'high', 'xhigh', 'max'];
+  if (effort && !efforts.includes(effort)) throw new Error('MODEL_REASONING_EFFORT 支持 low、medium、high、xhigh 或 max；留空使用模型默认值。');
+  const model = {name: env.MODEL_ID.trim(), limit: {context, output}, tool_call: true};
+  if (effort) model.options = {reasoningEffort: effort};
+  if (temperature !== undefined) model.temperature = true;
+  if (env.MODEL_ID.trim() === 'MiniMax-M3.1-Flash-Preview') {
+    model.reasoning = true;
+    if (api === 'openai-compatible') model.interleaved = 'reasoning_content';
+    model.variants = Object.fromEntries(efforts.map(value => [value, {reasoningEffort: value}]));
+  }
   const probe = '/workspace/.write-check-' + crypto.randomUUID();
   try { fs.writeFileSync(probe, '', {flag: 'wx'}); fs.unlinkSync(probe); }
   catch { throw new Error('/workspace 无法写入，请检查挂载权限和 APP_UID/APP_GID。'); }
@@ -46,7 +65,7 @@ try {
         npm: api === 'openai-responses' ? '@ai-sdk/openai' : '@ai-sdk/openai-compatible',
         name: 'My Analysis Model',
         options: {baseURL: '{env:MODEL_BASE_URL}', apiKey: '{env:MODEL_API_KEY}'},
-        models: {[env.MODEL_ID.trim()]: {name: env.MODEL_ID.trim(), limit: {context, output}, tool_call: true}},
+        models: {[env.MODEL_ID.trim()]: model},
       },
     },
     mcp: {
@@ -66,6 +85,9 @@ try {
       },
     },
   };
+  if (temperature !== undefined || top_p !== undefined) {
+    config.agent = {build: {temperature, top_p}, plan: {temperature, top_p}};
+  }
   fs.mkdirSync(path.dirname(env.OPENCODE_CONFIG), {recursive: true});
   fs.writeFileSync(env.OPENCODE_CONFIG, JSON.stringify(config, null, 2) + '\n', {mode: 0o600});
   console.log('配置就绪：工作目录 /workspace；REA 后端 Ghidra；模型 ' + env.MODEL_ID.trim());

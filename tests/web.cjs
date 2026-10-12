@@ -10,6 +10,8 @@ if (process.env.MODEL_BASE_URL !== 'http://127.0.0.1:8877/v1') {
 const origin = process.env.TEST_WEB_URL || 'http://127.0.0.1:4096';
 let observedTool = false;
 let receivedToolResult = false;
+let checkedParameters = false;
+let replayedReasoning = false;
 const mock = http.createServer(async (request, response) => {
   if (request.url !== '/v1/chat/completions') { response.writeHead(404).end(); return; }
   let raw = '';
@@ -17,8 +19,21 @@ const mock = http.createServer(async (request, response) => {
   const input = JSON.parse(raw);
   const hasTools = input.tools?.some(tool => tool.function?.name === 'rea_binary_session');
   const hasToolResult = input.messages.some(message => message.role === 'tool');
+  if (hasTools) {
+    assert.equal(input.model, process.env.MODEL_ID);
+    if (process.env.MODEL_REASONING_EFFORT) assert.equal(input.reasoning_effort, process.env.MODEL_REASONING_EFFORT);
+    if (process.env.MODEL_TEMPERATURE) assert.equal(input.temperature, Number(process.env.MODEL_TEMPERATURE));
+    if (process.env.MODEL_TOP_P) assert.equal(input.top_p, Number(process.env.MODEL_TOP_P));
+    assert.equal(input.max_tokens, Math.min(Number(process.env.MODEL_OUTPUT || 16384), 32000));
+    checkedParameters = true;
+  }
+  const splitReasoning = input.model === 'MiniMax-M3.1-Flash-Preview';
+  if (hasTools && hasToolResult && splitReasoning) {
+    assert.ok(input.messages.some(message => message.role === 'assistant' && message.reasoning_content === 'Check the REA connection.'));
+    replayedReasoning = true;
+  }
   const delta = hasTools && !hasToolResult
-    ? { tool_calls: [{index: 0, id: 'call_rea_smoke', type: 'function', function: {name: 'rea_binary_session', arguments: '{}'}}] }
+    ? { ...(splitReasoning ? {reasoning_content: 'Check the REA connection.'} : {}), tool_calls: [{index: 0, id: 'call_rea_smoke', type: 'function', function: {name: 'rea_binary_session', arguments: '{}'}}] }
     : { content: hasToolResult ? 'REA MCP verified through OpenCode. This is a local test model.' : 'Local test session' };
   if (hasTools && !hasToolResult) observedTool = true;
   if (hasToolResult) receivedToolResult = true;
@@ -54,6 +69,8 @@ async function api(route, options = {}) {
     const session = await api('/session', {method: 'POST', body: JSON.stringify({title: 'Container web acceptance'})});
     const answer = await api(`/session/${session.id}/message`, {method: 'POST', body: JSON.stringify({model: {providerID: 'analysis', modelID: process.env.MODEL_ID}, parts: [{type: 'text', text: 'Call rea_binary_session and report whether the MCP is connected.'}]})});
     assert.ok(observedTool && receivedToolResult, 'OpenCode must execute the model-requested REA MCP tool and return its result');
+    assert.ok(checkedParameters, 'Model parameters must reach the Chat Completions request');
+    if (process.env.MODEL_ID === 'MiniMax-M3.1-Flash-Preview') assert.ok(replayedReasoning, 'Tool history must preserve reasoning_content');
     assert.ok(answer.parts.some(part => part.type === 'text' && part.text.includes('REA MCP verified')));
     fs.writeFileSync('/workspace/analysis/web-acceptance.json', JSON.stringify({success: true, sessionID: session.id, webWithoutPassword: true, mcpConnected: true, modelMode: 'local-protocol-fixture', toolRoundTrip: true}, null, 2));
     console.log(JSON.stringify({success: true, sessionID: session.id, webWithoutPassword: true, mcpConnected: true, modelMode: 'local-protocol-fixture', toolRoundTrip: true}));
