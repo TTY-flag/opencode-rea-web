@@ -1,0 +1,50 @@
+services:
+  app:
+    image: opencode-rea-web:0.1.0
+    platform: linux/amd64
+    build:
+      context: .
+      args:
+        APP_UID: ${APP_UID:-1000}
+        APP_GID: ${APP_GID:-1000}
+        HTTP_PROXY: ${BUILD_HTTP_PROXY:-}
+        HTTPS_PROXY: ${BUILD_HTTPS_PROXY:-}
+    init: true
+    working_dir: /workspace
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-4096}:4096"
+    environment:
+      MODEL_API: ${MODEL_API:-openai-compatible}
+      MODEL_BASE_URL: ${MODEL_BASE_URL:?请在 .env 中配置 MODEL_BASE_URL}
+      MODEL_API_KEY: ${MODEL_API_KEY:?请在 .env 中配置 MODEL_API_KEY}
+      MODEL_ID: ${MODEL_ID:?请在 .env 中配置 MODEL_ID}
+      MODEL_CONTEXT: ${MODEL_CONTEXT:-131072}
+      MODEL_OUTPUT: ${MODEL_OUTPUT:-16384}
+      GHIDRA_HEADLESS_MAXMEM: ${GHIDRA_HEADLESS_MAXMEM:-2G}
+      REA_GHIDRA_STARTUP_TIMEOUT_MS: ${REA_GHIDRA_STARTUP_TIMEOUT_MS:-600000}
+      MCP_TIMEOUT_MS: ${MCP_TIMEOUT_MS:-900000}
+      HTTP_PROXY: ${RUNTIME_HTTP_PROXY:-}
+      HTTPS_PROXY: ${RUNTIME_HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,::1}
+    volumes:
+      - type: bind
+        source: ${WORKSPACE_DIR:-./workspace}
+        target: /workspace
+        read_only: false
+        bind:
+          create_host_path: false
+      - app-data:/home/analyst/.local/share
+      - app-cache:/home/analyst/.cache
+    cpus: ${CPU_LIMIT:-4}
+    mem_limit: ${MEMORY_LIMIT:-8g}
+    stop_grace_period: 60s
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4096/global/health', {signal: AbortSignal.timeout(3500)}).then(async r => {if (!r.ok || !(await r.json()).healthy) process.exit(1)}).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
+
+volumes:
+  app-data:
+  app-cache:
